@@ -8,7 +8,7 @@ state so any chat session (Claude Code or otherwise) can continue work without r
 **SSHDeck** — a self-hosted web SSH client replacing MobaXterm/Termius for its author
 (a DevOps engineer managing a fleet of internal Linux servers). Runs as ONE Docker
 container, multi-user, browser UI. Priorities: simplicity, Moba-like dark UX, zero
-extra infrastructure. Public open-source repo: https://github.com/zeeglyismail/sshdeck
+extra infrastructure. Public open-source repo: https://github.com/ismailhossainops/sshdeck
 
 ## Golden rules
 

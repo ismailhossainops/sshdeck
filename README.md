@@ -6,7 +6,7 @@ Two editions from one repo:
 
 | | **Desktop** (Windows) | **Web** (Docker) |
 |---|---|---|
-| Install | [**Download SSHDeck v1.6.5**](https://github.com/zeeglyismail/sshdeck/releases/latest) — 2.4 MB installer, no admin needed | `docker compose up -d` → http://localhost:8022 |
+| Install | [**Download SSHDeck v1.6.5**](https://github.com/ismailhossainops/sshdeck/releases/latest) — 2.4 MB installer, no admin needed | `docker compose up -d` → http://localhost:8022 |
 | Stack | Rust + Tauri 2 (6.5 MB exe, ~29 MB RAM, 0.3 s cold start) | FastAPI + asyncssh + SQLite |
 | Best for | Daily driver on your machine — native window, local terminals, splits | Team/self-hosted, reachable from any browser, multi-user |
 
@@ -86,7 +86,7 @@ Everything below is in **both** editions unless marked.
 
 ## Desktop edition (Windows)
 
-**[Download the installer →](https://github.com/zeeglyismail/sshdeck/releases/latest)** (`SSHDeck_1.6.5_x64-setup.exe`, 2.4 MB)
+**[Download the installer →](https://github.com/ismailhossainops/sshdeck/releases/latest)** (`SSHDeck_1.6.5_x64-setup.exe`, 2.4 MB)
 
 Per-user install, no admin prompt, Start-menu + desktop shortcuts, uninstaller included.
 Windows SmartScreen will warn on first run because the binary isn't code-signed — *More info → Run anyway*.
@@ -105,7 +105,7 @@ Needs Rust (MSVC toolchain), VS Build Tools C++ workload, and `cargo install tau
 ## Web edition (Docker)
 
 ```bash
-git clone https://github.com/zeeglyismail/sshdeck.git && cd sshdeck
+git clone https://github.com/ismailhossainops/sshdeck.git && cd sshdeck
 docker compose up -d --build
 ```
 
