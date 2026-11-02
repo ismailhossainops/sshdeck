@@ -170,9 +170,13 @@ pub async fn connect_with(spec: &ConnectSpec, handler: Client) -> Result<Handle<
     Err("authentication rejected (password / keyboard-interactive)".into())
 }
 
+/// Section 3 lists every filesystem (the frontend picks the real disks out of
+/// it). `timeout` because one dead NFS mount hangs `df` outright and would take
+/// the whole poll with it; a failure falls back to `/` alone. A partial `df`
+/// plus the fallback can list `/` twice — the parser dedupes by device.
 const STATS_CMD: &str = "head -1 /proc/stat; echo @@; \
 grep -E '^(MemTotal|MemAvailable)' /proc/meminfo; echo @@; \
-df -kP / | tail -1; echo @@; \
+{ timeout 3 df -kPT || df -kP /; } 2>/dev/null; echo @@; \
 cat /proc/net/dev; echo @@; \
 cut -d' ' -f1 /proc/uptime; echo @@; \
 cut -d' ' -f1-3 /proc/loadavg; echo @@; \

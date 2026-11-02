@@ -450,6 +450,41 @@ function hlApply(s) {
     return `\x1b[${color}m${m}\x1b[39m`;
   });
 }
+/* Highlight printable text only; escape sequences pass through untouched.
+ * Coloring a word INSIDE one breaks it: Ubuntu 26.04's systemd prompt hook sends
+ * OSC 3008 "…;exit=success" before every prompt, and the color code injected
+ * there ended the sequence early, so a stray green "success" was printed in front
+ * of the prompt. Sequences can straddle two output chunks, so the scanner state
+ * lives on the instance. mode: 0 text, 1 after ESC, 2 CSI, 3 OSC/DCS-type string,
+ * 4 ESC inside that string, 5 the one byte after a charset designator. */
+function hlStream(st, s, on) {
+  let out = "", i = 0;
+  while (i < s.length) {
+    if (st.mode === 0) {
+      const j = s.indexOf("\x1b", i);
+      const text = j < 0 ? s.slice(i) : s.slice(i, j);
+      out += on ? hlApply(text) : text;
+      if (j < 0) break;
+      out += "\x1b"; st.mode = 1; i = j + 1;
+      continue;
+    }
+    const c = s[i];
+    if (st.mode === 1) {
+      st.mode = c === "\x1b" ? 1 : c === "[" ? 2 : "]P_^X".includes(c) ? 3 : "()*+-./#% ".includes(c) ? 5 : 0;
+    } else if (st.mode === 2) {
+      if (c === "\x1b") st.mode = 1;
+      else if (c >= "@" && c <= "~") st.mode = 0;
+    } else if (st.mode === 3) {
+      if (c === "\x07") st.mode = 0;
+      else if (c === "\x1b") st.mode = 4;
+    } else if (st.mode === 4) {
+      if (c !== "\\") { st.mode = 1; continue; }   // a new sequence aborts the string
+      st.mode = 0;
+    } else st.mode = 0;
+    out += c; i++;
+  }
+  return out;
+}
 
 /* ---------- tab drag reorder with live FLIP preview — parity with web ---------- */
 function flipMove(container, mutate) {
@@ -545,12 +580,16 @@ function createInst(tab, source) {
     fontFamily: '"Cascadia Code", Consolas, monospace', fontSize: FONT_SIZE,
     theme: ACTIVE_THEME.terminal, cursorStyle: PREFS.cursorStyle,
     cursorBlink: PREFS.cursorMotion === "blink", scrollback: PREFS.scrollback,
+    allowProposedApi: true,   // the search addon's match highlighting uses decorations
   });
   const fit = new FitAddon.FitAddon();
   term.loadAddon(fit);
+  const search = new SearchAddon.SearchAddon();
+  term.loadAddon(search);
   term.open(el);
 
-  const inst = { id: ++seq, tab, source, host: source.host || null, wrapEl, term, fit,
+  const inst = { id: ++seq, tab, source, host: source.host || null, wrapEl, term, fit, search,
+                 hl: { mode: 0 }, findEl: null,
                  unsubs: [], dead: false, bcast: true, stats: null, prev: {}, cpuHist: [], netHist: [], diskHist: [] };
 
   el.addEventListener("wheel", ev => {
@@ -577,6 +616,7 @@ function createInst(tab, source) {
         return false;
       }
       if (ev.code === "KeyV") { pasteClipboard(); return false; }
+      if (ev.code === "KeyF") { openFind(inst); return false; }
     }
     return true;
   });
@@ -628,9 +668,9 @@ async function connectInst(inst) {
   const dec = new TextDecoder();
   inst.unsubs.push(await listen(`pty-out-${inst.id}`, ev => {
     let str = dec.decode(new Uint8Array(ev.payload), { stream: true });
-    // highlight only on the normal buffer — nano/vim/htop (alt screen) untouched
-    if (HL_ON && t.buffer.active.type === "normal") str = hlApply(str);
-    t.write(str);
+    // highlight only on the normal buffer — nano/vim/htop (alt screen) untouched.
+    // The scanner runs either way so it never loses its place in a sequence.
+    t.write(hlStream(inst.hl, str, HL_ON && t.buffer.active.type === "normal"));
   }));
   if (inst.source.kind === "local") {
     inst.unsubs.push(await listen(`pty-exit-${inst.id}`, () => t.write("\r\n\x1b[1;33m— process exited —\x1b[0m\r\n")));
@@ -1073,6 +1113,90 @@ $("#copy-all").onclick = e => {
   copyTerminal(tab.focused || tab.insts[0], e.currentTarget);
 };
 
+/* ---------- find in terminal output (Ctrl+Shift+F / ⌕ Find) ----------
+ * Searches the whole buffer, scrollback included, and marks every match — the
+ * point is `kubectl get pods -A` then type a name, instead of re-running with grep.
+ * Per split, so each one keeps its own query. */
+const FIND_DECOR = {
+  matchBackground: "#6b5a1e", matchBorder: "#e2b93d", matchOverviewRuler: "#e2b93d",
+  activeMatchBackground: "#d18616", activeMatchBorder: "#ffffff", activeMatchColorOverviewRuler: "#ffffff",
+};
+function openFind(inst) {
+  if (!inst.findEl) {
+    const bar = document.createElement("div");
+    bar.className = "findbar";
+    bar.innerHTML =
+      `<input placeholder="find in output…" spellcheck="false">` +
+      `<span class="fcount"></span>` +
+      `<button class="fopt fcase" title="match case">Aa</button>` +
+      `<button class="fopt fword" title="whole word">ab</button>` +
+      `<button class="fopt fre" title="regular expression">.*</button>` +
+      `<button class="fprev" title="previous (Shift+Enter)">↑</button>` +
+      `<button class="fnext" title="next (Enter)">↓</button>` +
+      `<button class="fx" title="close (Esc)">✕</button>`;
+    inst.wrapEl.appendChild(bar);
+    inst.findEl = bar;
+    const input = bar.querySelector("input"), count = bar.querySelector(".fcount");
+    const opts = { caseSensitive: false, wholeWord: false, regex: false };
+    const run = (back, incremental) => {
+      const q = input.value;
+      bar.classList.remove("miss");
+      if (!q) { inst.search.clearDecorations(); inst.term.clearSelection(); count.textContent = ""; return; }
+      const o = { ...opts, incremental, decorations: FIND_DECOR };
+      let found = false;
+      try { found = back ? inst.search.findPrevious(q, o) : inst.search.findNext(q, o); }
+      catch (e) { /* half-typed regex */ }
+      bar.classList.toggle("miss", !found);
+      if (!found) count.textContent = "0";
+    };
+    inst.search.onDidChangeResults(({ resultIndex, resultCount }) => {
+      // past 1000 matches the addon stops marking them and reports no position
+      count.textContent = !resultCount ? "0"
+        : resultIndex < 0 ? `${resultCount}+` : `${resultIndex + 1}/${resultCount}`;
+    });
+    input.addEventListener("input", () => run(false, true));
+    input.addEventListener("keydown", e => {
+      if (e.key === "Enter") { e.preventDefault(); run(e.shiftKey, false); }
+      else if (e.key === "Escape") { e.preventDefault(); closeFind(inst); }
+      else if (e.key === "F" && e.ctrlKey && e.shiftKey) { e.preventDefault(); input.select(); }
+    });
+    const toggle = (cls, key) => bar.querySelector(cls).onclick = ev => {
+      opts[key] = !opts[key];
+      ev.currentTarget.classList.toggle("on", opts[key]);
+      run(false, true);
+      input.focus();
+    };
+    toggle(".fcase", "caseSensitive"); toggle(".fword", "wholeWord"); toggle(".fre", "regex");
+    bar.querySelector(".fprev").onclick = () => { run(true, false); input.focus(); };
+    bar.querySelector(".fnext").onclick = () => { run(false, false); input.focus(); };
+    bar.querySelector(".fx").onclick = () => closeFind(inst);
+    // clicks inside the bar must not bounce focus back to the terminal
+    bar.addEventListener("mousedown", e => e.stopPropagation());
+  }
+  const input = inst.findEl.querySelector("input");
+  inst.findEl.classList.add("open");
+  // a selection is usually what you want to look for
+  const sel = inst.term.getSelection();
+  if (sel && !sel.includes("\n") && sel.length < 200) input.value = sel;
+  input.focus();
+  input.select();
+  if (input.value) input.dispatchEvent(new Event("input"));
+}
+function closeFind(inst) {
+  if (!inst.findEl) return;
+  inst.findEl.classList.remove("open");
+  inst.search.clearDecorations();
+  inst.term.clearSelection();
+  inst.term.focus();
+}
+$("#find").onclick = e => {
+  const tab = TABS.get(activeTab);
+  if (!tab) return flashOk(e.currentTarget, "no terminal");
+  const inst = tab.focused || tab.insts[0];
+  if (inst.findEl && inst.findEl.classList.contains("open")) closeFind(inst);
+  else openFind(inst);
+};
+
 $("#bcast").onclick = () => {
   const tab = TABS.get(activeTab);
   if (!tab) return;
@@ -1220,8 +1344,7 @@ function parseStats(out, prev) {
   }
   res.mem_total = (mem.MemTotal || 0) * 1024;
   res.mem_used = ((mem.MemTotal || 0) - (mem.MemAvailable || 0)) * 1024;
-  const df = parts[2].split(/\s+/);
-  res.disk_pct = df.length >= 5 ? parseInt(df[4]) || 0 : 0;
+  res.disks = parseDisks(parts[2]);
   // Count PHYSICAL interfaces only. Summing everything but `lo` triples the
   // numbers on a hypervisor: one packet to a guest shows up on the NIC, on the
   // bridge and on the tap. Only real hardware has /sys/class/net/<if>/device,
@@ -1285,6 +1408,66 @@ function parseStats(out, prev) {
   return res;
 }
 
+/* Every real filesystem, not just `/`: data disks under /mnt, /data, NFS shares.
+ * `df -kPT` lists far more than that, so this keeps only what a person mounted:
+ * - pseudo/runtime types (tmpfs, overlay, squashfs snaps, …) are dropped;
+ * - /boot, /run, /snap and container/kubelet internals are dropped — a k8s node
+ *   has dozens of per-pod mounts that are not disks anyone thinks about;
+ * - one row per device: bind mounts and btrfs subvolumes repeat their source,
+ *   and every dataset of a ZFS pool reports the same free space, so the pool is
+ *   the unit there. The shortest mount path wins.
+ * Without -T (busybox) the header has no Type column and sources decide instead. */
+const DF_SKIP_TYPES = /^(tmpfs|devtmpfs|ramfs|squashfs|overlay|aufs|efivarfs|proc|sysfs|cgroup2?|devpts|mqueue|debugfs|tracefs|securityfs|pstore|bpf|configfs|fusectl|hugetlbfs|autofs|binfmt_misc|nsfs|iso9660|fuse|fuse\.lxcfs|fuse\.snapfuse|fuse\.portal|fuse\.gvfsd-fuse)$/;
+const DF_SKIP_MOUNT = /^\/(boot|run|snap|dev|sys|proc)(\/|$)|\/(kubelet|containerd|docker|containers)\//;
+function parseDisks(text) {
+  const byKey = new Map();
+  let typed = false;
+  for (const line of text.split(NEWLINE)) {
+    const f = line.trim().split(/\s+/);
+    if (f[0] === "Filesystem") { typed = f[1] === "Type"; continue; }
+    const n = typed ? 7 : 6;
+    if (f.length < n) continue;
+    const [src, type] = typed ? [f[0], f[1]] : [f[0], ""];
+    const nums = f.slice(n - 5, n - 1);   // size, used, avail, capacity%
+    const mount = f.slice(n - 1).join(" ");
+    const size = parseInt(nums[0]) * 1024, used = parseInt(nums[1]) * 1024;
+    if (!size || DF_SKIP_MOUNT.test(mount)) continue;
+    // the untyped fallback is `df -kP /`, so its root row is wanted whatever the source
+    if (typed ? DF_SKIP_TYPES.test(type) : !(src.startsWith("/dev/") || src.includes(":") || mount === "/")) continue;
+    if (src.startsWith("/dev/loop")) continue;
+    const key = type === "zfs" ? "zfs:" + src.split("/")[0] : src;
+    const prev = byKey.get(key);
+    if (prev && prev.mount.length <= mount.length) continue;
+    byKey.set(key, { src, type, mount, size, used, pct: parseInt(nums[3]) || 0 });
+  }
+  return [...byKey.values()].sort((a, b) =>
+    a.mount === "/" ? -1 : b.mount === "/" ? 1 : a.mount.localeCompare(b.mount)).slice(0, 8);
+}
+
+/* the DISK items are rebuilt only when the set of mounts changes, so the meters
+ * keep their width transition between polls */
+function renderDisks(disks) {
+  const box = $("#st-disks");
+  const key = disks.map(d => d.mount).join(NEWLINE);
+  if (box.dataset.key !== key || !box.children.length) {
+    box.dataset.key = key;
+    box.innerHTML = disks.length
+      ? disks.map((d, i) => `<span class="st-item st-disk">${i ? "" : "DISK "}` +
+          `<span class="dmnt">${esc(d.mount)}</span><span class="meter"><i></i></span><b></b></span>`).join("")
+      : `<span class="st-item">DISK <b>–</b></span>`;
+  }
+  disks.forEach((d, i) => {
+    const el = box.children[i];
+    meterSet(el.querySelector("i"), d.pct);
+    el.querySelector("b").textContent = d.pct + "%";
+    el.title = `${d.mount} — ${d.src}${d.type ? " (" + d.type + ")" : ""}\n` +
+      `${fmtGb(d.used)} used of ${fmtGb(d.size)} · ${fmtGb(d.size - d.used)} free`;
+  });
+}
+function fmtGb(b) {
+  return b >= 1099511627776 ? (b / 1099511627776).toFixed(2) + " TB" : (b / 1073741824).toFixed(1) + " GB";
+}
+
 function meterSet(el, pct) {
   el.style.width = Math.min(100, pct) + "%";
   el.className = pct > 90 ? "crit" : pct > 70 ? "warn" : "";
@@ -1316,8 +1499,7 @@ function renderStats(t) {
   const memPct = s.mem_total ? s.mem_used / s.mem_total * 100 : 0;
   $("#st-mem").textContent = (s.mem_used / 1073741824).toFixed(2) + " / " + (s.mem_total / 1073741824).toFixed(2) + " GB";
   meterSet($("#st-membar"), memPct);
-  $("#st-disk").textContent = s.disk_pct + "%";
-  meterSet($("#st-diskbar"), s.disk_pct);
+  renderDisks(s.disks || []);
   const nmax = Math.max(10240, ...t.netHist.map(d => Math.max(d.rx, d.tx)));
   drawGraph($("#st-netgraph"), [
     { data: t.netHist.map(d => d.rx), color: GRAPH.cpu, max: nmax },

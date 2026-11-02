@@ -66,6 +66,10 @@ everything that differs. Owner's reaction to M1: "feels super smooth".
 - [x] **Log panel** (`log.rs` + Logs nav tab) — M7. One place every feature
       reports errors/warnings; added because transfer failures were only visible
       live and anything not caught in the moment was lost.
+- [x] **Find in terminal output** (Ctrl+Shift+F / ⌕ Find) — v1.6.5. Vendored
+      `@xterm/addon-search@0.15.0` (the release that pairs with xterm 5.5.0);
+      match highlighting needs `allowProposedApi: true` on the Terminal.
+- [x] **All disks in the monitoring bar**, bar wraps instead of scrolling — v1.6.5
 - [ ] `tar` streaming for directories of many small files — the other half of the
       transfer problem (per-file SFTP round trips), NOT built yet
 - [ ] X11 forwarding via user-installed VcXsrv — post-M5, optional
@@ -315,6 +319,22 @@ dialog as the backup export.
   `/proc/net/dev` (and logs that) rather than counting nothing.
   **The web app (`static/app.js`) still has this bug** — same parser, not fixed
   there because the owner asked for desktop-only changes.
+- **The output highlighter must never touch escape sequences.** It ran its regex
+  over raw PTY output, so on Ubuntu 26.04 — whose systemd prompt hook sends
+  `ESC ]3008;…;exit=success ESC \` before every prompt — it injected a color code
+  INSIDE the OSC, which ended it early and printed a green "success" in front of
+  every prompt. `hlStream` now scans sequences (CSI, OSC/DCS strings ended by BEL
+  or ST, charset designators) with per-instance state, because a sequence can
+  straddle two `pty-out` chunks, and only colors the text between them. The
+  scanner runs even with highlighting off so it never loses its place.
+- **The DISK readout lists every real filesystem** (`timeout 3 df -kPT`, falling
+  back to `df -kP /`) and `parseDisks` filters it: pseudo types, `/boot`, `/run`,
+  `/snap` and container/kubelet paths out; one row per device (bind mounts,
+  btrfs subvolumes) and one per ZFS pool, shortest mount path wins; max 8. Plain
+  `fuse` is skipped (Proxmox's `/etc/pve`); `fuse.sshfs`/`fuseblk` stay.
+- **The status bar wraps (flex-wrap) and every value that changes per poll has a
+  `min-width`.** Without those, the bar can flip between one and two rows as a
+  rate string grows, and each flip resizes the terminal (a SIGWINCH redraw).
 - **`zd*` (ZFS zvols) double-count disk I/O**, as do `nbd`/`drbd`: their traffic
   is counted again on the physical disks underneath. host05 runs ZFS, so this
   roughly doubled the DISK I/O readout.
@@ -377,7 +397,9 @@ Headless test recipe: build a shim page (`_shim_test.html`, stubbed
 verified splits/MultiExec/prefs with zero JS errors. Delete the shim afterwards.
 · **v1.0.0 shipped**: NSIS installer `SSHDeck_1.0.0_x64-setup.exe` (2.2 MB
 installer, 5.7 MB exe, no admin needed, per-user install).
-· **v1.6.4 is current** (2026-09-04): M6 transfers (queue, pause/resume/cancel,
+· **v1.6.5** (2026-11-02): find in terminal output, every disk in the
+monitoring bar, wrapping status bar, the Ubuntu 26.04 "success" prompt fix.
+· v1.6.4 (2026-09-04): M6 transfers (queue, pause/resume/cancel,
 folder drops, search, Sizes), M7 Logs tab + version tag, monitoring accuracy on
 hypervisors and single-NIC VMs, in-app confirm dialog, move-to-folder, IP filter.
 Shipping and testing procedures live in `.claude/skills/`.

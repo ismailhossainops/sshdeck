@@ -37,6 +37,7 @@
           <div id="tabbar"></div>
           <button id="split-h" class="tabrow-btn" title="Split right — pick a local terminal or any host">◫</button>
           <button id="split-v" class="tabrow-btn" title="Split down — pick a local terminal or any host">⬓</button>
+          <button id="find" class="tabrow-btn" title="Find in this terminal's output, scrollback included (Ctrl+Shift+F)">⌕ Find</button>
           <button id="copy-all" class="tabrow-btn" title="Copy this terminal's whole output (scrollback included)">⧉ Copy all</button>
           <button id="bcast" class="tabrow-btn" title="MultiExec: typing goes to every split in this tab">⌨ ALL</button>
           <button id="new-local" class="tabrow-btn" title="Open a local PowerShell terminal">+ Local</button>
@@ -51,7 +52,7 @@
           <span class="st-host"><span class="dot"></span><b id="st-label"></b><span id="st-addr"></span></span>
           <span class="st-item">CPU <canvas id="st-cpugraph" width="88" height="14"></canvas><b id="st-cpu">–</b></span>
           <span class="st-item">RAM <span class="meter"><i id="st-membar"></i></span><b id="st-mem">–</b></span>
-          <span class="st-item">DISK / <span class="meter"><i id="st-diskbar"></i></span><b id="st-disk">–</b></span>
+          <span id="st-disks"><span class="st-item">DISK <b>–</b></span></span>
           <span class="st-item">NET <canvas id="st-netgraph" width="88" height="14"></canvas><b class="up" id="st-tx">↑0</b> <b class="down" id="st-rx">↓0</b></span>
           <span class="st-item">DISK I/O <canvas id="st-diskiograph" width="88" height="14" title="last 60s — read (green) / write (blue)"></canvas><b class="down" id="st-drd">R 0</b> <b class="up" id="st-dwr">W 0</b></span>
           <span class="st-item">UPTIME <b id="st-up">–</b></span>
@@ -239,6 +240,7 @@
 
 <script src="vendor/xterm.js"></script>
 <script src="vendor/addon-fit.js"></script>
+<script src="vendor/addon-search.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

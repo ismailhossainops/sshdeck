@@ -116,7 +116,16 @@ body.resizing * { transition: none !important; }
 .empty { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; color: var(--muted); gap: 8px; text-align: center; }
 .empty-logo { font-size: 48px; color: var(--accent); opacity: .4; }
 
-#statusbar { flex: none; display: flex; align-items: center; gap: 18px; background: var(--panel); border-top: 1px solid var(--border); padding: 0 12px; height: 30px; font-family: var(--mono); font-size: 11px; color: var(--muted); overflow-x: auto; white-space: nowrap; }
+/* wraps onto extra rows instead of scrolling sideways; values that change every
+   poll get a min-width so the row count does not flap (each flap resizes the terminal) */
+#statusbar { flex: none; display: flex; flex-wrap: wrap; align-items: center; column-gap: 18px; row-gap: 5px; background: var(--panel); border-top: 1px solid var(--border); padding: 6px 12px; min-height: 30px; font-family: var(--mono); font-size: 11px; color: var(--muted); white-space: nowrap; }
+#st-disks { display: contents; }
+.st-disk .dmnt { max-width: 160px; overflow: hidden; text-overflow: ellipsis; }
+.st-item b { display: inline-block; }
+#st-cpu, .st-disk b { min-width: 4.5ch; }
+#st-mem { min-width: 15ch; }
+#st-tx, #st-rx, #st-drd, #st-dwr { min-width: 12ch; }
+#st-up { min-width: 8ch; }
 .st-host { display: flex; align-items: center; gap: 7px; color: var(--fg); }
 .st-host .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); display: inline-block; }
 .st-host.err .dot { background: var(--danger); }
@@ -246,7 +255,17 @@ body.resizing * { transition: none !important; }
 /* split layout */
 .split { display: flex; flex: 1; min-width: 0; min-height: 0; }
 .split.root { position: absolute; inset: 4px; }
-.tsplit { flex: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column; }
+.tsplit { flex: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column; position: relative; }
+.findbar { display: none; position: absolute; top: 6px; right: 18px; z-index: 20; align-items: center; gap: 2px; background: var(--bg2); border: 1px solid var(--border); border-radius: 6px; padding: 4px 6px; box-shadow: 0 4px 16px rgba(0,0,0,.5); font-family: var(--mono); font-size: 11px; }
+.findbar.open { display: flex; animation: fadeIn .12s ease; }
+.pane.multi .findbar { top: 26px; }
+.findbar input { width: 220px; padding: 3px 7px; font-family: var(--mono); font-size: 12px; }
+.findbar.miss input { border-color: var(--danger); }
+.findbar .fcount { min-width: 7ch; text-align: center; color: var(--muted); }
+.findbar button { background: none; border: 1px solid transparent; border-radius: 3px; color: var(--muted); padding: 1px 5px; font-family: var(--mono); font-size: 11px; cursor: pointer; }
+.findbar button:hover { color: var(--accent); }
+.findbar .fopt.on { color: #e2b93d; border-color: #e2b93d; }
+.findbar .fx:hover { color: var(--danger); }
 .tsplit .term-el { flex: 1; min-height: 0; }
 
 /* draggable divider between split panes */

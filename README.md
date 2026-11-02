@@ -6,7 +6,7 @@ Two editions from one repo:
 
 | | **Desktop** (Windows) | **Web** (Docker) |
 |---|---|---|
-| Install | [**Download SSHDeck v1.6.4**](https://github.com/zeeglyismail/sshdeck/releases/latest) — 2.4 MB installer, no admin needed | `docker compose up -d` → http://localhost:8022 |
+| Install | [**Download SSHDeck v1.6.5**](https://github.com/zeeglyismail/sshdeck/releases/latest) — 2.4 MB installer, no admin needed | `docker compose up -d` → http://localhost:8022 |
 | Stack | Rust + Tauri 2 (6.5 MB exe, ~29 MB RAM, 0.3 s cold start) | FastAPI + asyncssh + SQLite |
 | Best for | Daily driver on your machine — native window, local terminals, splits | Team/self-hosted, reachable from any browser, multi-user |
 
@@ -28,15 +28,18 @@ Everything below is in **both** editions unless marked.
 - Drag tabs to reorder with a live re-flow preview; middle-click closes a tab
 - Moba-style copy/paste: select-to-copy, middle-click paste, Ctrl+Shift+C/V
 - Font zoom (Ctrl+scroll / Ctrl+±), configurable scrollback (default 50 000 lines)
-- Output highlighting — IPs, MACs, UP/DOWN keywords — auto-off inside full-screen apps, toggleable
+- Output highlighting — IPs, MACs, UP/DOWN keywords — auto-off inside full-screen apps, toggleable; never touches escape sequences, so shell-integration prompts (Ubuntu 26.04's systemd OSC 3008) stay invisible
 - **Resizable splits** — drag the divider between panes; double-click to even them out *(desktop)*
 - **Copy all** — one button copies the whole terminal, scrollback included *(desktop)*
+- **Find in output** (Ctrl+Shift+F or ⌕ Find) — searches the whole scrollback and marks every match; match case, whole word, regex; Enter / Shift+Enter to step. Run `kubectl get pods -A` once and type the pod name instead of re-running it through `grep` *(desktop)*
 - Right-click a tab to **rename** it, or **duplicate** the session into a new tab *(desktop)*
 - Cursor style: bar / block / underline × phase (VS Code expand) / blink / steady *(desktop)*
 - Local terminal tabs *(desktop)*
 
 **Monitoring bar** — agentless, over the same SSH connection
-- CPU with 60-second sparkline, RAM and disk meters
+- CPU with 60-second sparkline, RAM meter
+- **Every real disk**, not just `/` — data disks under `/mnt`, NFS shares, ZFS pools — each with its own meter; hover for device, used and free. Snaps, tmpfs, `/boot` and container/kubelet mounts are left out *(desktop)*
+- The bar wraps onto extra rows instead of scrolling sideways when the window is narrow *(desktop)*
 - Network up/down rates with a 60-second graph — counts **physical interfaces only**, so bridges and VM taps on a hypervisor aren't triple-counted
 - **Disk I/O** read/write rates with a graph — whole disks only, so partitions, LVM and ZFS zvols aren't double-counted *(desktop)*
 - Uptime, and logged-in users with per-user session counts (`ismail×2 devops`) — hover for the full `who` detail
@@ -83,7 +86,7 @@ Everything below is in **both** editions unless marked.
 
 ## Desktop edition (Windows)
 
-**[Download the installer →](https://github.com/zeeglyismail/sshdeck/releases/latest)** (`SSHDeck_1.6.4_x64-setup.exe`, 2.4 MB)
+**[Download the installer →](https://github.com/zeeglyismail/sshdeck/releases/latest)** (`SSHDeck_1.6.5_x64-setup.exe`, 2.4 MB)
 
 Per-user install, no admin prompt, Start-menu + desktop shortcuts, uninstaller included.
 Windows SmartScreen will warn on first run because the binary isn't code-signed — *More info → Run anyway*.
@@ -136,7 +139,7 @@ rust/                     # desktop edition — Tauri 2
 
 **Why not microservices?** The SSH connection pool is the heart of the app — terminal, SFTP, stats and transfers all multiplex channels over the *same* connection per host. Splitting them into services would force one connection per service for zero gain. Feature-per-module gives the same isolation for development.
 
-**Monitoring internals** — no agents: one command per tick reads `/proc/stat`, `/proc/meminfo`, `df`, `/proc/net/dev`, `/proc/uptime`, `who`; deltas and rates are computed app-side.
+**Monitoring internals** — no agents: one command per tick reads `/proc/stat`, `/proc/meminfo`, `df` (all filesystems, with a 3 s timeout so a dead NFS mount can't stall it), `/proc/net/dev`, `/proc/uptime`, `who`; deltas and rates are computed app-side.
 
 **Host-to-host transfers** — the app opens SFTP sessions to both hosts and pipes read→write in chunks. The UI only carries the *instruction*, not the bytes.
 
