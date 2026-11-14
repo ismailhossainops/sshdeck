@@ -6,7 +6,7 @@ Two editions from one repo:
 
 | | **Desktop** (Windows) | **Web** (Docker) |
 |---|---|---|
-| Install | [**Download SSHDeck v1.6.5**](https://github.com/ismailhossainops/sshdeck/releases/latest) — 2.4 MB installer, no admin needed | `docker compose up -d` → http://localhost:8022 |
+| Install | [**Download SSHDeck v1.6.6**](https://github.com/ismailhossainops/sshdeck/releases/latest) — 2.4 MB installer, no admin needed | `docker compose up -d` → http://localhost:8022 |
 | Stack | Rust + Tauri 2 (6.5 MB exe, ~29 MB RAM, 0.3 s cold start) | FastAPI + asyncssh + SQLite |
 | Best for | Daily driver on your machine — native window, local terminals, splits | Team/self-hosted, reachable from any browser, multi-user |
 
@@ -29,6 +29,7 @@ Everything below is in **both** editions unless marked.
 - Moba-style copy/paste: select-to-copy, middle-click paste, Ctrl+Shift+C/V
 - Font zoom (Ctrl+scroll / Ctrl+±), configurable scrollback (default 50 000 lines)
 - Output highlighting — IPs, MACs, UP/DOWN keywords — auto-off inside full-screen apps, toggleable; never touches escape sequences, so shell-integration prompts (Ubuntu 26.04's systemd OSC 3008) stay invisible
+- **Readable `ls` on shared folders** — world-writable folders (every 777 NFS share) show as black on grey instead of `ls`'s default blue on green, on every server with no `LS_COLORS` change *(desktop)*
 - **Resizable splits** — drag the divider between panes; double-click to even them out *(desktop)*
 - **Copy all** — one button copies the whole terminal, scrollback included *(desktop)*
 - **Find in output** (Ctrl+Shift+F or ⌕ Find) — searches the whole scrollback and marks every match; match case, whole word, regex; Enter / Shift+Enter to step. Run `kubectl get pods -A` once and type the pod name instead of re-running it through `grep` *(desktop)*
@@ -86,7 +87,7 @@ Everything below is in **both** editions unless marked.
 
 ## Desktop edition (Windows)
 
-**[Download the installer →](https://github.com/ismailhossainops/sshdeck/releases/latest)** (`SSHDeck_1.6.5_x64-setup.exe`, 2.4 MB)
+**[Download the installer →](https://github.com/ismailhossainops/sshdeck/releases/latest)** (`SSHDeck_1.6.6_x64-setup.exe`, 2.4 MB)
 
 Per-user install, no admin prompt, Start-menu + desktop shortcuts, uninstaller included.
 Windows SmartScreen will warn on first run because the binary isn't code-signed — *More info → Run anyway*.

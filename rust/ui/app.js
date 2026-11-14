@@ -456,8 +456,9 @@ function hlApply(s) {
  * there ended the sequence early, so a stray green "success" was printed in front
  * of the prompt. Sequences can straddle two output chunks, so the scanner state
  * lives on the instance. mode: 0 text, 1 after ESC, 2 CSI, 3 OSC/DCS-type string,
- * 4 ESC inside that string, 5 the one byte after a charset designator. */
-function hlStream(st, s, on) {
+ * 4 ESC inside that string, 5 the one byte after a charset designator.
+ * CSI parameters are held in st.csi until the final byte so sgrFix can rewrite them. */
+function hlStream(st, s, on, fix) {
   let out = "", i = 0;
   while (i < s.length) {
     if (st.mode === 0) {
@@ -471,9 +472,11 @@ function hlStream(st, s, on) {
     const c = s[i];
     if (st.mode === 1) {
       st.mode = c === "\x1b" ? 1 : c === "[" ? 2 : "]P_^X".includes(c) ? 3 : "()*+-./#% ".includes(c) ? 5 : 0;
+      st.csi = "";
     } else if (st.mode === 2) {
-      if (c === "\x1b") st.mode = 1;
-      else if (c >= "@" && c <= "~") st.mode = 0;
+      if (c === "\x1b") { out += st.csi; st.mode = 1; }
+      else if (c >= "@" && c <= "~") { out += fix && c === "m" ? sgrFix(st.csi) : st.csi; st.mode = 0; }
+      else { st.csi += c; i++; continue; }
     } else if (st.mode === 3) {
       if (c === "\x07") st.mode = 0;
       else if (c === "\x1b") st.mode = 4;
@@ -484,6 +487,17 @@ function hlStream(st, s, on) {
     out += c; i++;
   }
   return out;
+}
+/* `ls` paints world-writable folders blue on green (dircolors ow=34;42) and
+ * sticky ones like /tmp black on green (tw=30;42) — near unreadable, and every
+ * 777 NFS share is full of them. Repaint both as black on grey (30;47) on every
+ * server, no LS_COLORS change needed. 38/48 sequences are left alone: their
+ * numbers are palette indexes, not colors. */
+function sgrFix(p) {
+  const f = p.split(";");
+  if (!f.includes("42") || f.includes("38") || f.includes("48")) return p;
+  if (!f.includes("34") && !f.includes("30")) return p;
+  return f.map(x => x === "42" ? "47" : x === "34" ? "30" : x).join(";");
 }
 
 /* ---------- tab drag reorder with live FLIP preview — parity with web ---------- */
@@ -670,7 +684,8 @@ async function connectInst(inst) {
     let str = dec.decode(new Uint8Array(ev.payload), { stream: true });
     // highlight only on the normal buffer — nano/vim/htop (alt screen) untouched.
     // The scanner runs either way so it never loses its place in a sequence.
-    t.write(hlStream(inst.hl, str, HL_ON && t.buffer.active.type === "normal"));
+    const normal = t.buffer.active.type === "normal";
+    t.write(hlStream(inst.hl, str, HL_ON && normal, normal));
   }));
   if (inst.source.kind === "local") {
     inst.unsubs.push(await listen(`pty-exit-${inst.id}`, () => t.write("\r\n\x1b[1;33m— process exited —\x1b[0m\r\n")));

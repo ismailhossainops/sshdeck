@@ -327,6 +327,11 @@ dialog as the backup export.
   or ST, charset designators) with per-instance state, because a sequence can
   straddle two `pty-out` chunks, and only colors the text between them. The
   scanner runs even with highlighting off so it never loses its place.
+- **`sgrFix` repaints `ls`'s world-writable colors** (dircolors `ow=34;42`, `tw=30;42`)
+  as black on grey `30;47` — owner picked it after trying `LS_COLORS` on a server,
+  wanted it app-wide instead of per server. Works because `hlStream` holds each CSI's
+  parameters in `st.csi` until the final byte; normal buffer only, and any `38`/`48`
+  sequence is skipped since its numbers are palette indexes.
 - **The DISK readout lists every real filesystem** (`timeout 3 df -kPT`, falling
   back to `df -kP /`) and `parseDisks` filters it: pseudo types, `/boot`, `/run`,
   `/snap` and container/kubelet paths out; one row per device (bind mounts,
@@ -397,7 +402,8 @@ Headless test recipe: build a shim page (`_shim_test.html`, stubbed
 verified splits/MultiExec/prefs with zero JS errors. Delete the shim afterwards.
 · **v1.0.0 shipped**: NSIS installer `SSHDeck_1.0.0_x64-setup.exe` (2.2 MB
 installer, 5.7 MB exe, no admin needed, per-user install).
-· **v1.6.5** (2026-11-02): find in terminal output, every disk in the
+· **v1.6.6** (2026-11-14): readable `ls` colors for world-writable folders.
+· v1.6.5 (2026-11-02): find in terminal output, every disk in the
 monitoring bar, wrapping status bar, the Ubuntu 26.04 "success" prompt fix.
 · v1.6.4 (2026-09-04): M6 transfers (queue, pause/resume/cancel,
 folder drops, search, Sizes), M7 Logs tab + version tag, monitoring accuracy on
