@@ -45,7 +45,11 @@ reasoning alone; both rigs are cheap.
    `app.js`. Stub hosts must carry `folder_id: null` or the tree renders empty.
    Bust the stylesheet cache with `href="style.css?v=N"` after each CSS edit.
 2. Serve it: `python -m http.server 88NN --directory rust/ui &` and open it with
-   the browser tool.
+   the browser tool. **No browser tool in the session?** Playwright is installed
+   globally on the owner's machine (`python -I`, bundled Chromium): load the shim
+   as `file:///…/_shim_test.html`, have the test script append a `<pre id=__result>`,
+   `wait_for_selector` it and print its text; delete the shim in a `finally`.
+   Headless Edge `--dump-dom` stopped printing anything (Nov 2026) — don't use it.
 3. **Test clicks with `document.elementFromPoint`, not `.click()`.** A
    programmatic click fires the handler regardless of what is painted on top,
    which is how a full-window invisible overlay survived three test runs.

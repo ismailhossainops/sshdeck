@@ -4117,7 +4117,7 @@ dependencies = [
 
 [[package]]
 name = "sshdeck-desktop"
-version = "1.6.6"
+version = "1.6.7"
 dependencies = [
  "aes-gcm",
  "async-trait",

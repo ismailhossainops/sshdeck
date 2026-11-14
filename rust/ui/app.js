@@ -1204,6 +1204,18 @@ function closeFind(inst) {
   inst.term.clearSelection();
   inst.term.focus();
 }
+/* Clear button: screen + scrollback, client-side only (nothing goes to the shell,
+ * so a half-typed command survives). Not while vim/htop/nano own the screen —
+ * wiping the alternate buffer under them only garbles it. */
+$("#clear").onclick = e => {
+  const tab = TABS.get(activeTab);
+  if (!tab) return flashOk(e.currentTarget, "no terminal");
+  const inst = tab.focused || tab.insts[0];
+  if (inst.term.buffer.active.type !== "normal") return flashOk(e.currentTarget, "app open");
+  inst.search.clearDecorations();
+  inst.term.clear();
+  inst.term.focus();
+};
 $("#find").onclick = e => {
   const tab = TABS.get(activeTab);
   if (!tab) return flashOk(e.currentTarget, "no terminal");

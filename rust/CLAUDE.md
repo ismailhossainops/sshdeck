@@ -402,7 +402,9 @@ Headless test recipe: build a shim page (`_shim_test.html`, stubbed
 verified splits/MultiExec/prefs with zero JS errors. Delete the shim afterwards.
 · **v1.0.0 shipped**: NSIS installer `SSHDeck_1.0.0_x64-setup.exe` (2.2 MB
 installer, 5.7 MB exe, no admin needed, per-user install).
-· **v1.6.6** (2026-11-14): readable `ls` colors for world-writable folders.
+· **v1.6.7** (2026-11-14): ⌫ Clear button (client-side `term.clear()`, refused on the
+alternate buffer).
+· v1.6.6 (2026-11-14): readable `ls` colors for world-writable folders.
 · v1.6.5 (2026-11-02): find in terminal output, every disk in the
 monitoring bar, wrapping status bar, the Ubuntu 26.04 "success" prompt fix.
 · v1.6.4 (2026-09-04): M6 transfers (queue, pause/resume/cancel,
