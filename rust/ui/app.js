@@ -1204,14 +1204,37 @@ function closeFind(inst) {
   inst.term.clearSelection();
   inst.term.focus();
 }
+/* Is nano the app on the alternate screen? Its title bar says "GNU nano", and
+ * unless help lines are hidden (-x) the bottom shows "^X Exit" / "^O Write Out". */
+function isNanoScreen(term) {
+  const b = term.buffer.active;
+  if (b.type !== "alternate") return false;
+  const row = i => (b.getLine(b.viewportY + i)?.translateToString(true) || "");
+  if (/GNU nano/.test(row(0))) return true;
+  const bottom = row(term.rows - 2) + "\n" + row(term.rows - 1);
+  return /\^X (Exit|Close)/.test(bottom) && /\^O Write Out/.test(bottom);
+}
+/* nano keys: Alt+\ (top), Ctrl+6 (mark), Alt+/ (end), Ctrl+K (cut). The text
+ * goes to nano's cut buffer and nothing is saved, so Ctrl+U puts it back. */
+const NANO_EMPTY = "\x1b\\\x1e\x1b/\x0b";
+
 /* Clear button: screen + scrollback, client-side only (nothing goes to the shell,
- * so a half-typed command survives). Not while vim/htop/nano own the screen —
- * wiping the alternate buffer under them only garbles it. */
-$("#clear").onclick = e => {
+ * so a half-typed command survives). In nano it offers to empty the buffer
+ * (after a confirm). Other full-screen apps (vim/htop) are left alone — wiping
+ * the alternate buffer under them only garbles it. */
+$("#clear").onclick = async e => {
+  const btn = e.currentTarget;
   const tab = TABS.get(activeTab);
-  if (!tab) return flashOk(e.currentTarget, "no terminal");
+  if (!tab) return flashOk(btn, "no terminal");
   const inst = tab.focused || tab.insts[0];
-  if (inst.term.buffer.active.type !== "normal") return flashOk(e.currentTarget, "app open");
+  if (isNanoScreen(inst.term)) {
+    if (document.getElementById("confirm-bg")) return; // a second click must not stack a second dialog
+    const ok = await deckConfirm("Empty everything in this nano file? Nothing is saved until you press Ctrl+O, and Ctrl+U right after puts the text back.", "Empty file");
+    if (ok && TABS.get(activeTab) === tab && isNanoScreen(inst.term)) sendTo(inst, NANO_EMPTY);
+    inst.term.focus();
+    return;
+  }
+  if (inst.term.buffer.active.type !== "normal") return flashOk(btn, "app open");
   inst.search.clearDecorations();
   inst.term.clear();
   inst.term.focus();

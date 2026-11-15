@@ -327,6 +327,10 @@ dialog as the backup export.
   or ST, charset designators) with per-instance state, because a sequence can
   straddle two `pty-out` chunks, and only colors the text between them. The
   scanner runs even with highlighting off so it never loses its place.
+- **Clear in nano sends keystrokes, not a screen wipe.** nano is detected from the
+  alternate screen (`GNU nano` title or `^X Exit`+`^O Write Out` help lines). The cut
+  only touches nano's buffer — the file changes only if the user saves. A second
+  click while the confirm is open is ignored (it used to stack two dialogs).
 - **`sgrFix` repaints `ls`'s world-writable colors** (dircolors `ow=34;42`, `tw=30;42`)
   as black on grey `30;47` — owner picked it after trying `LS_COLORS` on a server,
   wanted it app-wide instead of per server. Works because `hlStream` holds each CSI's
@@ -402,7 +406,10 @@ Headless test recipe: build a shim page (`_shim_test.html`, stubbed
 verified splits/MultiExec/prefs with zero JS errors. Delete the shim afterwards.
 · **v1.0.0 shipped**: NSIS installer `SSHDeck_1.0.0_x64-setup.exe` (2.2 MB
 installer, 5.7 MB exe, no admin needed, per-user install).
-· **v1.6.7** (2026-11-14): ⌫ Clear button (client-side `term.clear()`, refused on the
+· **v1.6.8** (2026-11-15): Clear inside nano empties the file after a `deckConfirm`
+(`isNanoScreen` + `NANO_EMPTY` = Alt+\ Ctrl+^ Alt+/ Ctrl+K; Ctrl+U restores, nothing
+saved). Verified on real nano 7.2 in WSL. vim/htop still refused.
+· v1.6.7 (2026-11-14): ⌫ Clear button (client-side `term.clear()`, refused on the
 alternate buffer).
 · v1.6.6 (2026-11-14): readable `ls` colors for world-writable folders.
 · v1.6.5 (2026-11-02): find in terminal output, every disk in the

@@ -6,7 +6,7 @@ Two editions from one repo:
 
 | | **Desktop** (Windows) | **Web** (Docker) |
 |---|---|---|
-| Install | [**Download SSHDeck v1.6.7**](https://github.com/ismailhossainops/sshdeck/releases/latest) — 2.4 MB installer, no admin needed | `docker compose up -d` → http://localhost:8022 |
+| Install | [**Download SSHDeck v1.6.8**](https://github.com/ismailhossainops/sshdeck/releases/latest) — 2.4 MB installer, no admin needed | `docker compose up -d` → http://localhost:8022 |
 | Stack | Rust + Tauri 2 (6.5 MB exe, ~29 MB RAM, 0.3 s cold start) | FastAPI + asyncssh + SQLite |
 | Best for | Daily driver on your machine — native window, local terminals, splits | Team/self-hosted, reachable from any browser, multi-user |
 
@@ -32,7 +32,7 @@ Everything below is in **both** editions unless marked.
 - **Readable `ls` on shared folders** — world-writable folders (every 777 NFS share) show as black on grey instead of `ls`'s default blue on green, on every server with no `LS_COLORS` change *(desktop)*
 - **Resizable splits** — drag the divider between panes; double-click to even them out *(desktop)*
 - **Copy all** — one button copies the whole terminal, scrollback included *(desktop)*
-- **Clear** — one button wipes the screen and scrollback, keeping your prompt (and anything half-typed on it); refuses while vim/htop own the screen *(desktop)*
+- **Clear** — one button wipes the screen and scrollback, keeping your prompt (and anything half-typed on it); inside nano it offers (after a confirm) to empty the file — Ctrl+U puts it back, nothing is saved until Ctrl+O; refuses in vim/htop *(desktop)*
 - **Find in output** (Ctrl+Shift+F or ⌕ Find) — searches the whole scrollback and marks every match; match case, whole word, regex; Enter / Shift+Enter to step. Run `kubectl get pods -A` once and type the pod name instead of re-running it through `grep` *(desktop)*
 - Right-click a tab to **rename** it, or **duplicate** the session into a new tab *(desktop)*
 - Cursor style: bar / block / underline × phase (VS Code expand) / blink / steady *(desktop)*
@@ -88,7 +88,7 @@ Everything below is in **both** editions unless marked.
 
 ## Desktop edition (Windows)
 
-**[Download the installer →](https://github.com/ismailhossainops/sshdeck/releases/latest)** (`SSHDeck_1.6.7_x64-setup.exe`, 2.4 MB)
+**[Download the installer →](https://github.com/ismailhossainops/sshdeck/releases/latest)** (`SSHDeck_1.6.8_x64-setup.exe`, 2.4 MB)
 
 Per-user install, no admin prompt, Start-menu + desktop shortcuts, uninstaller included.
 Windows SmartScreen will warn on first run because the binary isn't code-signed — *More info → Run anyway*.
