@@ -257,6 +257,54 @@ function folderOptions(selectedId) {
   return out.join("");
 }
 
+/* ---- multi-select in the sidebar: Ctrl+click, Shift+click, Ctrl+A in the filter ----
+ * Right-click on a selection opens them all at once (grid of splits or tabs). */
+const HOST_SEL = new Set();
+let selAnchor = null;
+const visibleHostIds = () => [...$("#tree").querySelectorAll(".tree-host")].map(r => +r.dataset.hid);
+function paintHostSel() {
+  $("#tree").querySelectorAll(".tree-host").forEach(r => r.classList.toggle("sel", HOST_SEL.has(+r.dataset.hid)));
+  const bar = $("#sel-bar");
+  bar.classList.toggle("hidden", HOST_SEL.size < 2);
+  bar.querySelector(".sel-n").textContent = HOST_SEL.size;
+}
+function toggleHostSel(id) {
+  HOST_SEL.has(id) ? HOST_SEL.delete(id) : HOST_SEL.add(id);
+  selAnchor = id;
+  paintHostSel();
+}
+function rangeHostSel(id) {
+  const ids = visibleHostIds();
+  const a = ids.indexOf(selAnchor), b = ids.indexOf(id);
+  if (a < 0) { toggleHostSel(id); return; }
+  for (let i = Math.min(a, b); i <= Math.max(a, b); i++) HOST_SEL.add(ids[i]);
+  paintHostSel();
+}
+function clearHostSel() {
+  if (!HOST_SEL.size) return;
+  HOST_SEL.clear();
+  selAnchor = null;
+  paintHostSel();
+}
+/* selected hosts in the order the sidebar shows them; filtered-out ones after */
+function selectedHosts() {
+  const order = visibleHostIds();
+  const rank = id => { const i = order.indexOf(id); return i < 0 ? 1e9 : i; };
+  return STATE.hosts.filter(h => HOST_SEL.has(h.id)).sort((x, y) => rank(x.id) - rank(y.id));
+}
+function multiHostMenu() {
+  const hosts = selectedHosts(), n = hosts.length;
+  const tab = TABS.get(activeTab);
+  const done = fn => () => { clearHostSel(); fn(); };
+  return [
+    { label: `Open ${n} in splits`, fn: done(() => openHostsGrid(hosts, false)) },
+    { label: `Open ${n} in splits + ALL typing`, fn: done(() => openHostsGrid(hosts, true)) },
+    { label: `Open ${n} as separate tabs`, fn: done(() => hosts.forEach(h => openSshTerminal(h))) },
+    ...(tab ? [{ label: `Add ${n} to current tab`, fn: done(() => addHostsToTab(tab, hosts)) }] : []),
+    { label: "Clear selection", fn: clearHostSel },
+  ];
+}
+
 function renderTree() {
   const filter = $("#filter").value.trim().toLowerCase();
   const tree = $("#tree");
@@ -276,11 +324,21 @@ function renderTree() {
     he.innerHTML = `<span class="hicon">●</span><span class="hlabel">${esc(h.label)}</span>` +
       `<span class="hmeta">${esc(filter && hostMatch(h) ? h.hostname : shownUser)}</span>` +
       `<button class="edit-btn" title="Edit">✎</button>`;
+    he.dataset.hid = h.id;
+    if (HOST_SEL.has(h.id)) he.classList.add("sel");
+    // Shift/Ctrl+click must not start a text selection across the tree
+    he.addEventListener("mousedown", e => { if (e.shiftKey || e.ctrlKey) e.preventDefault(); });
     he.onclick = e => {
       if (e.target.classList.contains("edit-btn")) { openHostModal(h); return; }
+      if (e.ctrlKey || e.metaKey) { toggleHostSel(h.id); return; }
+      if (e.shiftKey) { rangeHostSel(h.id); return; }
+      clearHostSel();
       openSshTerminal(h);
     };
-    he.oncontextmenu = e => ctxMenu(e, [
+    he.oncontextmenu = e => {
+      if (HOST_SEL.size > 1 && HOST_SEL.has(h.id)) return ctxMenu(e, multiHostMenu());
+      clearHostSel();
+      ctxMenu(e, [
       { label: "Connect", fn: () => openSshTerminal(h) },
       { label: "Edit", fn: () => openHostModal(h) },
       { label: "Duplicate", fn: async () => {
@@ -299,6 +357,7 @@ function renderTree() {
           loadState();
         } },
     ]);
+    };
     he.draggable = true;
     he.addEventListener("dragstart", ev => {
       ev.dataTransfer.setData(HOST_DND, String(h.id));
@@ -387,6 +446,7 @@ function renderTree() {
     }
   };
   renderInside(null, 0);
+  paintHostSel();
 }
 
 // drop on empty tree space → move host / folder to root
@@ -408,6 +468,16 @@ function renderTree() {
 }
 
 $("#filter").addEventListener("input", renderTree);
+// with something typed, Ctrl+A also selects every host the filter shows
+$("#filter").addEventListener("keydown", e => {
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "a" && e.target.value.trim()) {
+    visibleHostIds().forEach(id => HOST_SEL.add(id));
+    paintHostSel();
+  }
+});
+document.addEventListener("keydown", e => { if (e.key === "Escape" && HOST_SEL.size && !ctxEl) clearHostSel(); });
+$("#sel-bar .sel-x").onclick = clearHostSel;
+$("#sel-bar .sel-open").onclick = e => ctxMenu(e, multiHostMenu());
 
 /* sidebar resize */
 {
@@ -981,6 +1051,67 @@ async function splitActive(source, dir) {
   setTimeout(() => tab.insts.forEach(i => i.sendResize()), 10);
   await connectInst(inst);
   inst.term.focus();
+}
+
+/* ---- grid of splits: open many hosts in one tab ----
+ * 2 → side by side, 3–4 → 2×2, 5–9 → 3 per row. More than 9 per tab is
+ * unreadable on one screen, so the rest go into another tab. */
+const GRID_MAX = 9;
+const gridCols = n => n <= 1 ? 1 : n <= 4 ? 2 : 3;
+function layoutGrid(tab) {
+  stripGutters(tab);
+  const root = tab.root, n = tab.insts.length, cols = gridCols(n);
+  root.replaceChildren();
+  const place = (parent, i) => { i.wrapEl.style.flex = "1 1 0"; parent.appendChild(i.wrapEl); };
+  if (n <= cols) {
+    root.style.flexDirection = "row";
+    tab.insts.forEach(i => place(root, i));
+  } else {
+    root.style.flexDirection = "column";
+    for (let r = 0; r < n; r += cols) {
+      const row = document.createElement("div");
+      row.className = "split";
+      row.style.flexDirection = "row";
+      row.style.flex = "1 1 0";
+      tab.insts.slice(r, r + cols).forEach(i => place(row, i));
+      root.appendChild(row);
+    }
+  }
+  installGutters(tab);
+}
+function connectAll(insts) {
+  for (const i of insts) connectInst(i).catch(e => logUi("ui", e));
+}
+function openHostsGrid(hosts, bcast) {
+  if (!hosts.length) return;
+  showView("terms");
+  for (let k = 0; k < hosts.length; k += GRID_MAX) {
+    const chunk = hosts.slice(k, k + GRID_MAX);
+    const tab = makeTab(chunk[0].label);
+    for (const h of chunk) tab.insts.push(createInst(tab, { kind: "ssh", host: h }));
+    layoutGrid(tab);
+    if (bcast) { tab.broadcast = true; tab.pane.classList.add("bc"); }
+    updateTabChrome(tab);
+    activateTab(tab.id);
+    connectAll(tab.insts);
+  }
+}
+/* add hosts to an existing tab and re-tile it as a grid (up to GRID_MAX; the
+ * rest open as a new grid tab with the same MultiExec state) */
+function addHostsToTab(tab, hosts) {
+  if (!TABS.has(tab.id)) return openHostsGrid(hosts, false);
+  const room = Math.max(0, GRID_MAX - tab.insts.length);
+  const now = hosts.slice(0, room), rest = hosts.slice(room);
+  if (now.length) {
+    const added = now.map(h => createInst(tab, { kind: "ssh", host: h }));
+    tab.insts.push(...added);
+    layoutGrid(tab);
+    updateTabChrome(tab);
+    activateTab(tab.id);
+    focusInst(tab, added[0]);
+    connectAll(added);
+  }
+  if (rest.length) openHostsGrid(rest, tab.broadcast);
 }
 
 /* Pick a destination folder for a host. Dragging works, but with a few dozen

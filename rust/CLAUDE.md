@@ -327,6 +327,10 @@ dialog as the backup export.
   or ST, charset designators) with per-instance state, because a sequence can
   straddle two `pty-out` chunks, and only colors the text between them. The
   scanner runs even with highlighting off so it never loses its place.
+- **`layoutGrid` rebuilds the tab's whole split tree** (detaches every `wrapEl` and
+  re-appends it — xterm survives reparenting). So "Add to current tab" resets any
+  hand-resized or nested layout to an even grid; that is intended. Plain click on a
+  host still opens it and clears the selection; the single-host menu is unchanged.
 - **Clear in nano sends keystrokes, not a screen wipe.** nano is detected from the
   alternate screen (`GNU nano` title or `^X Exit`+`^O Write Out` help lines). The cut
   only touches nano's buffer — the file changes only if the user saves. A second
@@ -406,7 +410,12 @@ Headless test recipe: build a shim page (`_shim_test.html`, stubbed
 verified splits/MultiExec/prefs with zero JS errors. Delete the shim afterwards.
 · **v1.0.0 shipped**: NSIS installer `SSHDeck_1.0.0_x64-setup.exe` (2.2 MB
 installer, 5.7 MB exe, no admin needed, per-user install).
-· **v1.6.8** (2026-11-15): Clear inside nano empties the file after a `deckConfirm`
+· **v1.6.9** (2026-11-17): sidebar multi-select (`HOST_SEL`, Ctrl/Shift+click, Ctrl+A in
+the filter, Esc, `#sel-bar`) → right-click opens a grid of splits (`openHostsGrid`/
+`layoutGrid`: 2 side by side, 3–4 2×2, 5–9 three per row, >9 spills into another tab),
+"+ ALL typing", separate tabs, or "Add to current tab" (re-tiles it). Split buttons
+now labelled "Split right"/"Split down". Old picker flow unchanged.
+· v1.6.8 (2026-11-15): Clear inside nano empties the file after a `deckConfirm`
 (`isNanoScreen` + `NANO_EMPTY` = Alt+\ Ctrl+^ Alt+/ Ctrl+K; Ctrl+U restores, nothing
 saved). Verified on real nano 7.2 in WSL. vim/htop still refused.
 · v1.6.7 (2026-11-14): ⌫ Clear button (client-side `term.clear()`, refused on the

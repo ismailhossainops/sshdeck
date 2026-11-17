@@ -6,7 +6,7 @@ Two editions from one repo:
 
 | | **Desktop** (Windows) | **Web** (Docker) |
 |---|---|---|
-| Install | [**Download SSHDeck v1.6.8**](https://github.com/ismailhossainops/sshdeck/releases/latest) — 2.4 MB installer, no admin needed | `docker compose up -d` → http://localhost:8022 |
+| Install | [**Download SSHDeck v1.6.9**](https://github.com/ismailhossainops/sshdeck/releases/latest) — 2.4 MB installer, no admin needed | `docker compose up -d` → http://localhost:8022 |
 | Stack | Rust + Tauri 2 (6.5 MB exe, ~29 MB RAM, 0.3 s cold start) | FastAPI + asyncssh + SQLite |
 | Best for | Daily driver on your machine — native window, local terminals, splits | Team/self-hosted, reachable from any browser, multi-user |
 
@@ -24,6 +24,7 @@ Everything below is in **both** editions unless marked.
 - xterm.js terminals with tabs, 256-color, tmux/vim/nano friendly
 - **Split panes** — split right/down, nestable; each split can be a **local shell (PowerShell/cmd/WSL) or any saved host** *(desktop)*
 - **MultiExec** — type once, every split in the tab receives it; per-split opt-out *(desktop)*
+- **Open many hosts at once** — Ctrl+click / Shift+click hosts in the sidebar (or type a filter and press Ctrl+A), right-click → open them as a grid of splits (up to 9 per tab, optionally with MultiExec on), as separate tabs, or add them to the current tab *(desktop)*
 - **Press Enter to reconnect** a dropped session in place — same tab, scrollback intact (perfect for reboots)
 - Drag tabs to reorder with a live re-flow preview; middle-click closes a tab
 - Moba-style copy/paste: select-to-copy, middle-click paste, Ctrl+Shift+C/V
@@ -88,7 +89,7 @@ Everything below is in **both** editions unless marked.
 
 ## Desktop edition (Windows)
 
-**[Download the installer →](https://github.com/ismailhossainops/sshdeck/releases/latest)** (`SSHDeck_1.6.8_x64-setup.exe`, 2.4 MB)
+**[Download the installer →](https://github.com/ismailhossainops/sshdeck/releases/latest)** (`SSHDeck_1.6.9_x64-setup.exe`, 2.4 MB)
 
 Per-user install, no admin prompt, Start-menu + desktop shortcuts, uninstaller included.
 Windows SmartScreen will warn on first run because the binary isn't code-signed — *More info → Run anyway*.

@@ -59,6 +59,14 @@ body.resizing * { transition: none !important; }
 .tree-host .edit-btn { visibility: hidden; background: none; border: none; color: var(--muted); padding: 0 2px; }
 .tree-host:hover .edit-btn { visibility: visible; }
 .tree-host .edit-btn:hover { color: var(--accent); }
+.tree-host.sel { background: rgba(76,195,138,.18); box-shadow: inset 2px 0 0 var(--accent); }
+.tree-host.sel:hover { background: rgba(76,195,138,.26); }
+#sel-bar { display: flex; align-items: center; gap: 6px; margin: 0 8px 4px; padding: 4px 8px; border: 1px solid var(--accent); border-radius: 4px; font-size: 12px; color: var(--fg); }
+#sel-bar.hidden { display: none; }
+#sel-bar b { color: var(--accent); }
+#sel-bar .sel-open { margin-left: auto; }
+#sel-bar button { background: none; border: 1px solid var(--border); color: var(--fg); border-radius: 3px; padding: 1px 6px; font-size: 11px; cursor: pointer; }
+#sel-bar button:hover { color: var(--accent); border-color: var(--accent); }
 .tree-folder.drop { color: var(--accent); background: rgba(76,195,138,.1); }
 #tree.drop { outline: 1px dashed var(--border); outline-offset: -3px; }
 .side-foot { padding: 8px; display: flex; gap: 6px; border-top: 1px solid var(--border); }

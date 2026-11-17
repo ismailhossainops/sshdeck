@@ -22,7 +22,8 @@
 
   <div id="body">
     <aside id="sidebar">
-      <div class="side-head"><input id="filter" placeholder="filter sessions…" spellcheck="false"></div>
+      <div class="side-head"><input id="filter" placeholder="filter sessions…" spellcheck="false" title="Ctrl+click / Shift+click hosts to select several · with text typed here, Ctrl+A selects every match · right-click the selection to open them together"></div>
+      <div id="sel-bar" class="hidden"><span><b class="sel-n">0</b> selected</span><button class="sel-open" title="Open the selected hosts (same as right-click)">Open ▾</button><button class="sel-x" title="Clear selection (Esc)">✕</button></div>
       <div id="tree"></div>
       <div class="side-foot">
         <button id="add-host" class="btn-primary small">+ Host</button>
@@ -35,8 +36,8 @@
       <section id="view-terms" class="view active">
         <div id="tabrow">
           <div id="tabbar"></div>
-          <button id="split-h" class="tabrow-btn" title="Split right — pick a local terminal or any host">◫</button>
-          <button id="split-v" class="tabrow-btn" title="Split down — pick a local terminal or any host">⬓</button>
+          <button id="split-h" class="tabrow-btn" title="Split right — pick a local terminal or any host">◫ Split right</button>
+          <button id="split-v" class="tabrow-btn" title="Split down — pick a local terminal or any host">⬓ Split down</button>
           <button id="find" class="tabrow-btn" title="Find in this terminal's output, scrollback included (Ctrl+Shift+F)">⌕ Find</button>
           <button id="clear" class="tabrow-btn" title="Clear this terminal — screen and scrollback; your prompt stays">⌫ Clear</button>
           <button id="copy-all" class="tabrow-btn" title="Copy this terminal's whole output (scrollback included)">⧉ Copy all</button>
