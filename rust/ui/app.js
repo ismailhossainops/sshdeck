@@ -341,6 +341,7 @@ function renderTree() {
       ctxMenu(e, [
       { label: "Connect", fn: () => openSshTerminal(h) },
       { label: "Edit", fn: () => openHostModal(h) },
+      { label: "Scan ports", fn: () => scanPrefill(h.hostname) },
       { label: "Duplicate", fn: async () => {
           const newId = await invoke("host_duplicate", { id: h.id });
           await loadState();
@@ -1714,6 +1715,7 @@ function showView(name) {
   $$(".view").forEach(v => v.classList.toggle("active", v.id === "view-" + name));
   if (name === "terms" && activeTab) setTimeout(fitActive, 10);
   if (name === "tunnels") loadTunnels();
+  if (name === "scanner") scanFillFrom();
   if (name === "files") renderPaneHostOptions();
   if (name === "logs") {
     logUnseen = 0;
@@ -2757,6 +2759,204 @@ $("#tun-add").onclick = async () => {
     loadTunnels();
   } catch (e) { logUi("ui", e); alert(e); }
 };
+
+/* ---------- port scanner ----------
+ * The Rust side (scan.rs) does the probing; this page builds the request and
+ * renders `scan-{id}` events: progress (throttled), host (discovery), open, done.
+ */
+const SCAN_PRESETS = {
+  common: "21,22,23,25,53,80,110,111,135,139,143,389,443,445,465,587,636,873,993,995,1433,1521,2049,2375,2376,2379,3000,3306,3389,5000,5432,5601,5672,5900,5985,6379,6443,8000,8006,8080,8081,8086,8123,8200,8443,8500,8888,9000,9090,9092,9100,9200,9300,10250,11211,15672,27017",
+  web: "80,443,3000,5000,8000,8008,8080,8081,8443,8888,9000,9090,9443",
+  db: "1433,1521,3306,5432,6379,8123,9000,9042,9092,9200,9300,11211,27017,27018",
+  k8s: "22,443,2379,2380,6443,8080,9100,10250,10256,10257,10259,30000-32767",
+  top: "1-1024",
+  all: "1-65535",
+};
+// Windows needs ~2 s to report a refused port, so the local default waits longer
+const SCAN_DEFAULTS = { local: { timeout: 2500, conc: 300 }, ssh: { timeout: 1500, conc: 48 } };
+const TLS_PORTS = new Set([443, 2376, 5986, 6443, 8443, 9443, 10250]);
+const WEB_PORTS = new Set([80, 443, 3000, 5000, 5601, 8000, 8006, 8008, 8080, 8081, 8086, 8123, 8200, 8443, 8500, 8888, 9000, 9090, 9200, 9443, 15672]);
+const SCAN = { id: null, from: null, results: [], unlisten: null, started: 0 };
+
+function scanFillFrom() {
+  const sel = $("#sc-from"), keep = sel.value;
+  sel.innerHTML = '<option value="">This PC (Windows)</option>' +
+    STATE.hosts.map(h => `<option value="${h.id}">via ${esc(h.label)} (${esc(h.hostname)})</option>`).join("");
+  if ([...sel.options].some(o => o.value === keep)) sel.value = keep;
+}
+function scanDefaults(force) {
+  const d = SCAN_DEFAULTS[$("#sc-from").value ? "ssh" : "local"];
+  for (const [el, v] of [[$("#sc-timeout"), d.timeout], [$("#sc-conc"), d.conc]])
+    if (force || !el.dataset.own) { el.value = v; delete el.dataset.own; }
+}
+function scanPrefill(target) {
+  showView("scanner");
+  $("#sc-targets").value = target;
+  $("#sc-from").value = "";
+  scanDefaults(false);
+  $("#sc-targets").focus();
+}
+$("#sc-from").onchange = () => scanDefaults(false);
+["#sc-timeout", "#sc-conc"].forEach(q => $(q).addEventListener("input", e => { e.target.dataset.own = "1"; }));
+$("#sc-preset").onchange = e => { if (e.target.value !== "custom") $("#sc-ports").value = SCAN_PRESETS[e.target.value]; };
+$("#sc-ports").addEventListener("input", () => {
+  const match = Object.entries(SCAN_PRESETS).find(([, v]) => v === $("#sc-ports").value.trim());
+  $("#sc-preset").value = match ? match[0] : "custom";
+});
+$("#sc-ports").value = SCAN_PRESETS.common;
+scanFillFrom();
+scanDefaults(true);
+
+function scanHint(html) {
+  const el = $("#sc-hint");
+  el.innerHTML = html || "";
+  el.classList.toggle("hidden", !html);
+}
+function scanStatus(t) { $("#sc-status").textContent = t; }
+function scanBusy(on) {
+  $("#sc-start").classList.toggle("hidden", on);
+  $("#sc-stop").classList.toggle("hidden", !on);
+  ["#sc-from", "#sc-targets", "#sc-preset", "#sc-ports", "#sc-timeout", "#sc-conc", "#sc-discover", "#sc-banner"]
+    .forEach(q => { $(q).disabled = on; });
+}
+const ipKey = a => /^\d+\.\d+\.\d+\.\d+$/.test(a) ? a.split(".").reduce((n, o) => n * 256 + +o, 0) : Infinity;
+
+function scanRender() {
+  const body = $("#sc-results tbody");
+  const rows = [...SCAN.results].sort((a, b) =>
+    (ipKey(a.addr) - ipKey(b.addr)) || a.target.localeCompare(b.target) || a.port - b.port);
+  body.innerHTML = "";
+  let prev = null;
+  for (const r of rows) {
+    const tr = document.createElement("tr");
+    const first = r.target !== prev;
+    if (first && prev !== null) tr.className = "first";
+    const hostCell = first ? esc(r.target) + (r.addr !== r.target ? ` <span class="muted">${esc(r.addr)}</span>` : "") : "";
+    tr.innerHTML = `<td class="mono">${hostCell}</td><td class="mono">${r.port}</td>` +
+      `<td>${esc(r.service || "")}</td><td class="ban">${esc(r.banner || "")}</td><td class="act"></td>`;
+    const act = tr.querySelector(".act");
+    const add = (label, title, fn) => {
+      const b = document.createElement("button");
+      b.className = "btn-ghost small"; b.textContent = label; b.title = title; b.onclick = fn;
+      act.appendChild(b);
+    };
+    if (r.via === null) {
+      if (WEB_PORTS.has(r.port) || /^HTTP\//.test(r.banner || "")) {
+        const tls = TLS_PORTS.has(r.port) || r.banner === "TLS";
+        const url = `${tls ? "https" : "http"}://${r.addr.includes(":") ? "[" + r.addr + "]" : r.addr}:${r.port}/`;
+        add("Open", "Open " + url + " in your browser", () => invoke("open_url", { url }).catch(e => alert(e)));
+      }
+      if (r.port === 22 || /^SSH-/.test(r.banner || "")) add("+ Host", "Save as a new host", () => {
+        openHostModal(null);
+        $("#hm-label").value = r.target;
+        $("#hm-host").value = r.addr;
+        $("#hm-port").value = r.port;
+      });
+    } else {
+      add("Tunnel", "Make a local tunnel to this port through the server you scanned from", () => {
+        showView("tunnels");
+        $("#tun-host").value = String(r.via);
+        $("#tun-kind").value = "local";
+        tunKindChanged();
+        $("#tun-name").value = `${r.target}:${r.port}`;
+        $("#tun-dhost").value = r.addr;
+        $("#tun-dport").value = r.port;
+        $("#tun-lport").focus();
+      });
+    }
+    body.appendChild(tr);
+    prev = r.target;
+  }
+  $("#sc-empty").classList.toggle("hidden", rows.length > 0);
+}
+
+let scanRenderQueued = false;
+function scanQueueRender() {
+  if (scanRenderQueued) return;
+  scanRenderQueued = true;
+  requestAnimationFrame(() => { scanRenderQueued = false; scanRender(); });
+}
+
+function scanEvent(ev) {
+  const e = ev.payload;
+  const n = x => Number(x).toLocaleString();
+  const secs = () => Math.round((Date.now() - SCAN.started) / 1000);
+  if (e.kind === "progress") {
+    $("#sc-bar > div").style.width = (e.total ? Math.min(100, 100 * e.done / e.total) : 0) + "%";
+    scanStatus(e.phase === "discover"
+      ? `Finding live hosts… ${n(e.done)}/${n(e.total)} · ${n(e.up)} up · ${secs()}s`
+      : `Scanning ${n(e.done)}/${n(e.total)} · ${n(e.open)} open · ${secs()}s`);
+  } else if (e.kind === "open") {
+    SCAN.results.push({ target: e.target, addr: e.addr, port: e.port, service: e.service, banner: e.banner, via: SCAN.from });
+    scanQueueRender();
+  } else if (e.kind === "done") {
+    scanFinish();
+    $("#sc-bar > div").style.width = "100%";
+    const hosts = new Set(SCAN.results.map(r => r.target)).size;
+    scanStatus(`${e.stopped ? "Stopped" : "Done"} in ${e.secs.toFixed(1)}s — ${n(e.open)} open` +
+      (e.open ? ` on ${hosts} host${hosts === 1 ? "" : "s"}` : "") +
+      ` · ${n(e.closed)} closed · ${n(e.silent)} no answer` + (e.targets > 1 ? ` · ${n(e.up)}/${n(e.targets)} hosts up` : ""));
+    if (e.forbidden) scanHint("<b>This server does not allow port forwarding</b> (<code>AllowTcpForwarding no</code> in its sshd_config), so it cannot make connections for the scanner. Scan from This PC or from another server.");
+    else if (e.lost) scanHint("<b>The SSH connection to the server dropped</b> during the scan. The results found so far are kept.");
+    else if (!e.stopped && e.targets > 1 && e.up === 0 && $("#sc-discover").checked)
+      scanHint("<b>No host answered discovery.</b> A firewall can hide live hosts — untick <i>Find live hosts first</i> to scan every address anyway" +
+        (SCAN.from === null ? ", or scan from a server inside that network." : "."));
+    else if (!e.stopped && e.done > 0 && e.open === 0 && e.closed === 0)
+      scanHint(SCAN.from === null
+        ? "<b>Nothing answered at all.</b> Either every port is firewalled, or this PC cannot reach the target. If it sits on an internal network, set <i>Scan from</i> to a server inside that network."
+        : "<b>Nothing answered at all.</b> Either every port is firewalled, or this server cannot reach the target either.");
+  }
+}
+
+function scanFinish() {
+  if (SCAN.unlisten) { SCAN.unlisten(); SCAN.unlisten = null; }
+  SCAN.id = null;
+  scanBusy(false);
+}
+
+$("#sc-start").onclick = async () => {
+  if (SCAN.id) return;
+  const targets = $("#sc-targets").value.trim(), ports = $("#sc-ports").value.trim();
+  if (!targets) { $("#sc-targets").focus(); return scanStatus("Enter an IP, subnet, range or hostname."); }
+  if (!ports) { $("#sc-ports").focus(); return scanStatus("Enter ports or pick a preset."); }
+  const fromVal = $("#sc-from").value;
+  const id = ++seq;
+  SCAN.id = id;
+  SCAN.from = fromVal ? parseInt(fromVal) : null;
+  SCAN.results = [];
+  SCAN.started = Date.now();
+  scanRender();
+  scanHint("");
+  $("#sc-bar > div").style.width = "0%";
+  scanBusy(true);
+  scanStatus(fromVal ? "Connecting to the server…" : "Starting…");
+  try {
+    SCAN.unlisten = await listen(`scan-${id}`, scanEvent);
+    const r = await invoke("scan_start", {
+      id, hostId: SCAN.from, targets, ports,
+      timeoutMs: parseInt($("#sc-timeout").value) || SCAN_DEFAULTS.local.timeout,
+      concurrency: parseInt($("#sc-conc").value) || 100,
+      discover: $("#sc-discover").checked, banners: $("#sc-banner").checked,
+    });
+    if (SCAN.id === id && $("#sc-status").textContent.startsWith(fromVal ? "Connecting" : "Starting"))
+      scanStatus(`Started: ${r.targets.toLocaleString()} target(s) × ${r.ports.toLocaleString()} port(s)…`);
+  } catch (e) {
+    scanFinish();
+    scanStatus("");
+    scanHint("<b>Could not start:</b> " + esc(String(e)));
+    logUi("scan", e);
+  }
+};
+$("#sc-stop").onclick = () => { if (SCAN.id) invoke("scan_stop", { id: SCAN.id }); scanStatus("Stopping…"); };
+$("#sc-clear").onclick = () => { if (!SCAN.id) { SCAN.results = []; scanRender(); scanHint(""); scanStatus(""); $("#sc-bar > div").style.width = "0%"; } };
+$("#sc-copy").onclick = async e => {
+  const q = v => /[",\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v;
+  const lines = ["host,address,port,service,answer",
+    ...SCAN.results.map(r => [r.target, r.addr, r.port, r.service || "", r.banner || ""].map(x => q(String(x))).join(","))];
+  try { await navigator.clipboard.writeText(lines.join(NEWLINE)); flashOk(e.currentTarget, `✓ ${SCAN.results.length} rows`); }
+  catch { flashOk(e.currentTarget, "✗ copy failed"); }
+};
+$("#sc-targets").addEventListener("keydown", e => { if (e.key === "Enter") $("#sc-start").click(); });
 
 /* ---------- preferences: cursor, safety ---------- */
 

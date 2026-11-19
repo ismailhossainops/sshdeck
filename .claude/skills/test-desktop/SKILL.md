@@ -12,7 +12,7 @@ reasoning alone; both rigs are cheap.
 
 1. Start a disposable server — note the port is **2222 inside**, not 22:
    ```bash
-   docker run -d --name sshdeck-fasttest -p 2299:2222 -e USER_NAME=test -e USER_PASSWORD=testpw -e PASSWORD_ACCESS=true lscr.io/linuxserver/openssh-server:latest
+   docker run -d --name sshdeck-fasttest -p 52299:2222 -e USER_NAME=test -e USER_PASSWORD=testpw -e PASSWORD_ACCESS=true lscr.io/linuxserver/openssh-server:latest
    sleep 12
    docker exec sshdeck-fasttest sh -c 'apk add --no-cache coreutils findutils zstd >/dev/null 2>&1; echo tools-ok'
    ```

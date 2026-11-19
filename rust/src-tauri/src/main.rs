@@ -8,6 +8,7 @@ mod export;
 mod fast;
 mod log;
 mod portability;
+mod scan;
 mod sftp;
 mod ssh;
 mod stash;
@@ -437,6 +438,7 @@ fn main() {
         .manage(fast::CapsCache::default())
         .manage(log::Logs::default())
         .manage(tunnels::Active::default())
+        .manage(scan::Scans::default())
         .setup(|app| {
             let data_dir = app.path().app_data_dir().expect("app data dir");
             portability::apply_pending_reset(&data_dir);
@@ -458,6 +460,7 @@ fn main() {
             sftp::transfer_start, sftp::transfers_clear, sftp::transfer_resume, sftp::transfer_forget, sftp::transfer_pause, sftp::transfer_cancel,
             tunnels::tunnels_list, tunnels::tunnel_save, tunnels::tunnel_delete,
             tunnels::tunnel_start, tunnels::tunnel_stop,
+            scan::scan_start, scan::scan_stop, scan::open_url,
             portability::import_backup, portability::factory_reset,
             export::export_backup, export::export_mobaconf, export::import_mobaconf,
             ssh::pool_release,

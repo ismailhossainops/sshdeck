@@ -70,6 +70,7 @@ everything that differs. Owner's reaction to M1: "feels super smooth".
       `@xterm/addon-search@0.15.0` (the release that pairs with xterm 5.5.0);
       match highlighting needs `allowProposedApi: true` on the Terminal.
 - [x] **All disks in the monitoring bar**, bar wraps instead of scrolling — v1.6.5
+- [x] **Port scanner** (Scanner tab, `scan.rs`) — v1.7.0, local or through a saved host
 - [ ] `tar` streaming for directories of many small files — the other half of the
       transfer problem (per-file SFTP round trips), NOT built yet
 - [ ] X11 forwarding via user-installed VcXsrv — post-M5, optional
@@ -327,6 +328,21 @@ dialog as the backup export.
   or ST, charset designators) with per-instance state, because a sequence can
   straddle two `pty-out` chunks, and only colors the text between them. The
   scanner runs even with highlighting off so it never loses its place.
+- **Port scanner semantics (`scan.rs`).** Outcomes: open / closed (refused) / silent
+  (timeout) / Forbidden (`AdministrativelyProhibited` = `AllowTcpForwarding no`) / Lost
+  (any non-ChannelOpenFailure error = the SSH connection died). Forbidden and Lost STOP
+  the scan — counting them as closed ports once reported every port of a dead
+  connection as "closed". **Windows takes ~2.0 s to report a refused port** (measured),
+  so the local default timeout is 2500 ms and local discovery never waits less;
+  through a server a refusal comes back in milliseconds (1500 ms default). `run()`
+  takes an `Emit` callback (not an AppHandle) so it can be driven by a self-test, and it
+  DISCONNECTS its dedicated connection at the end. SYN/UDP/OS detection deliberately
+  left out (admin rights / unreliable). `open_url` only accepts scanner-built
+  http(s) URLs and launches via `rundll32 url.dll`, no shell.
+  Test rig: linuxserver/openssh-server ships `AllowTcpForwarding no` in
+  `/config/sshd/sshd_config` (good for the Forbidden case); flip it and
+  `s6-svc -r /run/service/svc-openssh-server`. Port 2299 sits in a Windows-excluded
+  range on the owner's machine — publish on 52299.
 - **`layoutGrid` rebuilds the tab's whole split tree** (detaches every `wrapEl` and
   re-appends it — xterm survives reparenting). So "Add to current tab" resets any
   hand-resized or nested layout to an even grid; that is intended. Plain click on a
@@ -410,7 +426,11 @@ Headless test recipe: build a shim page (`_shim_test.html`, stubbed
 verified splits/MultiExec/prefs with zero JS errors. Delete the shim afterwards.
 · **v1.0.0 shipped**: NSIS installer `SSHDeck_1.0.0_x64-setup.exe` (2.2 MB
 installer, 5.7 MB exe, no admin needed, per-user install).
-· **v1.6.9** (2026-11-17): sidebar multi-select (`HOST_SEL`, Ctrl/Shift+click, Ctrl+A in
+· **v1.7.0** (2026-11-19): **Scanner** tab (`scan.rs`): TCP connect scan from this PC
+or through a saved host (`direct-tcpip` per probe on a dedicated connection), CIDR/range/
+hostname targets, port presets, discovery, banners, Open/+ Host/Tunnel actions, host
+menu "Scan ports". Verified 19/19 against a real sshd + 43/43 UI checks.
+· v1.6.9 (2026-11-17): sidebar multi-select (`HOST_SEL`, Ctrl/Shift+click, Ctrl+A in
 the filter, Esc, `#sel-bar`) → right-click opens a grid of splits (`openHostsGrid`/
 `layoutGrid`: 2 side by side, 3–4 2×2, 5–9 three per row, >9 spills into another tab),
 "+ ALL typing", separate tabs, or "Add to current tab" (re-tiles it). Split buttons

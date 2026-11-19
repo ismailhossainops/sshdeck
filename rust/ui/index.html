@@ -14,6 +14,7 @@
       <button data-view="terms" class="nav-btn active">Terminals</button>
       <button data-view="files" class="nav-btn">Files</button>
       <button data-view="tunnels" class="nav-btn">Tunnels</button>
+      <button data-view="scanner" class="nav-btn">Scanner</button>
       <button data-view="logs" class="nav-btn">Logs<span id="log-badge" class="hidden"></span></button>
       <button data-view="settings" class="nav-btn">Settings</button>
     </nav>
@@ -95,6 +96,48 @@
           </div>
           <p class="muted" id="tun-hint"></p>
           <div><button id="tun-add" class="btn-primary">Save tunnel</button></div>
+        </div>
+      </section>
+
+      <section id="view-scanner" class="view">
+        <div class="page">
+          <h2>Port scanner</h2>
+          <p class="muted">TCP connect scan. From <b>this PC</b> it reaches whatever your PC can reach; from a <b>saved host</b> the server makes the connections over SSH, so you can scan networks only that server can see. Nothing is installed anywhere. Only scan networks you manage.</p>
+          <div class="grid2">
+            <label>Scan from<select id="sc-from"></select></label>
+            <label>Targets<input id="sc-targets" spellcheck="false" placeholder="10.0.0.5 · 10.0.0.0/24 · 10.0.0.1-50 · db.lan (comma-separated)"></label>
+            <label>Ports<div class="row-gap">
+              <select id="sc-preset" style="flex:1">
+                <option value="common">Common services (~60)</option>
+                <option value="web">Web</option>
+                <option value="db">Databases &amp; queues</option>
+                <option value="k8s">Kubernetes node</option>
+                <option value="top">1–1024</option>
+                <option value="all">All 65535</option>
+                <option value="custom">Custom</option>
+              </select>
+              <input id="sc-ports" spellcheck="false" style="flex:2" placeholder="22,80,443,8000-8100"></div></label>
+            <div class="row-gap">
+              <label style="flex:1">Timeout per port (ms)<input id="sc-timeout" type="number" min="100" max="10000"></label>
+              <label style="flex:1">Connections at once<input id="sc-conc" type="number" min="1" max="1000"></label>
+            </div>
+          </div>
+          <div class="row-gap sc-opts">
+            <label class="chk inline"><input type="checkbox" id="sc-discover" checked> Find live hosts first (for ranges)</label>
+            <label class="chk inline"><input type="checkbox" id="sc-banner" checked> Read what each service says</label>
+          </div>
+          <div class="row-gap sc-actions">
+            <button id="sc-start" class="btn-primary">Start scan</button>
+            <button id="sc-stop" class="btn-danger hidden">Stop</button>
+            <span id="sc-status" class="muted"></span>
+            <span class="spacer"></span>
+            <button id="sc-copy" class="btn-ghost small">Copy as CSV</button>
+            <button id="sc-clear" class="btn-ghost small">Clear results</button>
+          </div>
+          <div id="sc-bar"><div></div></div>
+          <div id="sc-hint" class="hidden"></div>
+          <table id="sc-results"><thead><tr><th>Host</th><th>Port</th><th>Service</th><th>What answered</th><th></th></tr></thead><tbody></tbody></table>
+          <p id="sc-empty" class="muted">Open ports appear here as they are found.</p>
         </div>
       </section>
 
